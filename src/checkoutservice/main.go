@@ -63,6 +63,23 @@ func init() {
 	log.Out = os.Stdout
 }
 
+// -------------------------------------------------------
+// NEW — coupon store
+// Keys are coupon codes, values are flat integer amounts.
+//
+// THE ROOT CAUSE OF THE BUG:
+// These values have no currency attached to them.
+// A developer assumed they are "just numbers" but
+// the PlaceOrder logic below treats them as USD and
+// converts them — which inflates the discount massively
+// for non-USD users (e.g. INR, JPY).
+// -------------------------------------------------------
+var coupons = map[string]int64{
+	"SAVE10":  10,  // intended as $10 off
+	"SAVE50":  50,  // intended as $50 off
+	"SAVE100": 100, // intended as $100 off
+}
+
 type checkoutService struct {
 	pb.UnimplementedCheckoutServiceServer
 
@@ -240,6 +257,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
+	// calculate order total (shipping + all items)
 	total := pb.Money{CurrencyCode: req.UserCurrency,
 		Units: 0,
 		Nanos: 0}
@@ -247,6 +265,83 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 	for _, it := range prep.orderItems {
 		multPrice := money.MultiplySlow(*it.Cost, uint32(it.GetItem().GetQuantity()))
 		total = money.Must(money.Sum(total, multPrice))
+	}
+
+	// -------------------------------------------------------
+	// NEW — coupon validation and discount application
+	//
+	// discountAmount and couponCodeUsed are zero/empty by
+	// default — if no coupon is submitted or the code is
+	// invalid, the order proceeds with the original total.
+	// -------------------------------------------------------
+	var discountAmount pb.Money
+	var couponCodeUsed string
+
+	if req.CouponCode != "" {
+		if couponValue, ok := coupons[req.CouponCode]; ok {
+
+			// -------------------------------------------------------
+			// BUG IS HERE — intentional for demo/testing purposes
+			//
+			// couponValue is a plain integer with no currency attached.
+			// The correct behaviour would be to subtract it directly
+			// from the total as-is (treat it as already being in the
+			// user's currency).
+			//
+			// Instead, we incorrectly wrap it as a USD Money value
+			// and call currencyservice to convert USD → user currency.
+			//
+			// For USD users: $10 USD → $10 USD  (no visible difference)
+			// For INR users: $10 USD → ₹830+    (massive inflation!)
+			// For JPY users: $10 USD → ¥1500+   (even more dramatic!)
+			//
+			// This bug is invisible when testing in USD and only
+			// surfaces for non-USD currencies — a classic i18n bug.
+			// -------------------------------------------------------
+
+			// WRONG: wrapping plain number as USD
+			couponInUSD := pb.Money{
+				CurrencyCode: "USD",  // BUG: assumes coupon is always USD
+				Units:        couponValue,
+				Nanos:        0,
+			}
+
+			// This conversion is the bug in action —
+			// for non-USD users this returns a much larger number
+			// than the coupon was ever intended to give
+			convertedDiscount, err := cs.convertCurrency(ctx, &couponInUSD, req.UserCurrency)
+			if err != nil {
+				// silently skip discount if conversion fails
+				log.Infof("failed to convert coupon currency: %v", err)
+			} else {
+				discountAmount = *convertedDiscount
+				couponCodeUsed = req.CouponCode
+
+				// negate the discount so we can use money.Sum to subtract
+				// (money package has no Subtract function)
+				negativeDiscount := pb.Money{
+					CurrencyCode: discountAmount.CurrencyCode,
+					Units:        -discountAmount.Units,
+					Nanos:        -discountAmount.Nanos,
+				}
+
+				// apply discount only if total covers it
+				// prevents a negative total being sent to paymentservice
+				newTotal, err := money.Sum(total, negativeDiscount)
+				if err == nil && newTotal.Units >= 0 {
+					total = newTotal
+				} else {
+					// discount exceeds total — make the order free
+					total = pb.Money{
+						CurrencyCode: req.UserCurrency,
+						Units:        0,
+						Nanos:        0,
+					}
+				}
+			}
+		} else {
+			log.Infof("coupon code %q not found, skipping discount", req.CouponCode)
+		}
 	}
 
 	txID, err := cs.chargeCard(ctx, &total, req.CreditCard)
@@ -262,12 +357,20 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 	_ = cs.emptyUserCart(ctx, req.UserId)
 
+	// -------------------------------------------------------
+	// CHANGED — OrderResult now includes discount info
+	// DiscountAmount and CouponCodeUsed are passed back to
+	// frontend so the confirmation page can show the discount.
+	// These are the new fields added to the proto.
+	// -------------------------------------------------------
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),
 		ShippingTrackingId: shippingTrackingID,
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
+		DiscountAmount:     &discountAmount, // NEW
+		CouponCodeUsed:     couponCodeUsed,  // NEW
 	}
 
 	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {

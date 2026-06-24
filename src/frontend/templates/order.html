@@ -53,6 +53,44 @@
                     {{.order.ShippingTrackingId}}
                 </div>
             </div>
+
+            <!--
+                NEW — Coupon discount row
+                Only shown when a coupon was actually applied
+                (i.e. coupon_code_used is not empty).
+
+                .discount_amount is the Money value returned by
+                checkoutservice in OrderResult.DiscountAmount.
+
+                NOTE: For non-USD users this number will appear
+                very large — that is the intentional bug.
+                e.g. INR user with SAVE10 will see ₹830+ discount
+                instead of ₹10, because checkoutservice wrongly
+                converted $10 USD → INR before subtracting.
+            -->
+            {{ if .coupon_code_used }}
+            <div class="row border-bottom-solid padding-y-24">
+                <div class="col-6 pl-md-0" style="color: #28a745;">
+                    Coupon Applied
+                    <span style="
+                        background-color: #d4edda;
+                        color: #155724;
+                        padding: 2px 8px;
+                        border-radius: 4px;
+                        font-size: 0.85em;
+                        font-weight: bold;
+                        margin-left: 6px;
+                    ">
+                        {{ .coupon_code_used }}
+                    </span>
+                </div>
+                <div class="col-6 pr-md-0 text-right" style="color: #28a745;">
+                    - {{ renderMoney .discount_amount }}
+                </div>
+            </div>
+            {{ end }}
+            <!-- END NEW coupon row -->
+
             <div class="row padding-y-24">
                 <div class="col-6 pl-md-0">
                     Total Paid

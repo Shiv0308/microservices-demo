@@ -207,6 +207,37 @@
                             </div>
                         </div>
 
+                        <!--
+                            NEW — Coupon code input field
+                            This sits just above the Place Order button.
+                            The name="coupon_code" must match exactly what
+                            placeOrderHandler reads via r.FormValue("coupon_code").
+                            The field is optional — leaving it blank means no coupon.
+                        -->
+                        <div class="row">
+                            <div class="col">
+                                <h3 class="payment-method-heading">Coupon Code</h3>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="col cymbal-form-field">
+                                <label for="coupon_code">Have a coupon?</label>
+                                <input
+                                    type="text"
+                                    id="coupon_code"
+                                    name="coupon_code"
+                                    placeholder="Enter coupon code (optional)"
+                                    maxlength="20"
+                                    style="text-transform: uppercase;"
+                                >
+                                <small style="color: #6c757d; font-size: 0.85em;">
+                                    Try: SAVE10, SAVE50, SAVE100
+                                </small>
+                            </div>
+                        </div>
+                        <!-- END NEW coupon section -->
+
                         <div class="form-row justify-content-center">
                             <div class="col text-center">
                                 <button class="cymbal-button-primary" type="submit">

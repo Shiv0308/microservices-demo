@@ -232,7 +232,7 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to add to cart"), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("location", baseUrl + "/cart")
+	w.Header().Set("location", baseUrl+"/cart")
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -244,7 +244,7 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to empty cart"), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("location", baseUrl + "/")
+	w.Header().Set("location", baseUrl+"/")
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -332,6 +332,12 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		ccMonth, _    = strconv.ParseInt(r.FormValue("credit_card_expiration_month"), 10, 32)
 		ccYear, _     = strconv.ParseInt(r.FormValue("credit_card_expiration_year"), 10, 32)
 		ccCVV, _      = strconv.ParseInt(r.FormValue("credit_card_cvv"), 10, 32)
+
+		// -----------------------------------------------
+		// NEW — read coupon code submitted from the form
+		// will be empty string if user left the field blank
+		// -----------------------------------------------
+		couponCode = r.FormValue("coupon_code")
 	)
 
 	payload := validator.PlaceOrderPayload{
@@ -367,6 +373,12 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 				State:         payload.State,
 				ZipCode:       int32(payload.ZipCode),
 				Country:       payload.Country},
+			// -----------------------------------------------
+			// NEW — pass coupon code to checkoutservice
+			// empty string means no coupon, checkoutservice
+			// will skip discount logic in that case
+			// -----------------------------------------------
+			CouponCode: couponCode,
 		})
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to complete the order"), http.StatusInternalServerError)
@@ -377,10 +389,31 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	order.GetOrder().GetItems()
 	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
 
+	// -----------------------------------------------
+	// CHANGED — totalPaid now subtracts the discount
+	// that checkoutservice already applied.
+	// We start from shipping cost, add all item costs,
+	// then subtract the discount amount returned by
+	// checkoutservice in the OrderResult.
+	// -----------------------------------------------
 	totalPaid := *order.GetOrder().GetShippingCost()
 	for _, v := range order.GetOrder().GetItems() {
 		multPrice := money.MultiplySlow(*v.GetCost(), uint32(v.GetItem().GetQuantity()))
 		totalPaid = money.Must(money.Sum(totalPaid, multPrice))
+	}
+
+	// subtract discount if a coupon was applied
+	// GetDiscountAmount() returns zero-value Money if no coupon was used
+	discount := order.GetOrder().GetDiscountAmount()
+	if discount != nil && discount.GetUnits() > 0 {
+		negativeDiscount := pb.Money{
+			CurrencyCode: discount.GetCurrencyCode(),
+			Units:        -discount.GetUnits(),
+			Nanos:        -discount.GetNanos(),
+		}
+		if newTotal, err := money.Sum(totalPaid, negativeDiscount); err == nil {
+			totalPaid = newTotal
+		}
 	}
 
 	currencies, err := fe.getCurrencies(r.Context())
@@ -395,6 +428,12 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		"order":           order.GetOrder(),
 		"total_paid":      &totalPaid,
 		"recommendations": recommendations,
+		// -----------------------------------------------
+		// NEW — pass discount info to the order template
+		// so it can show the coupon row on the confirmation page
+		// -----------------------------------------------
+		"discount_amount":  order.GetOrder().GetDiscountAmount(),
+		"coupon_code_used": order.GetOrder().GetCouponCodeUsed(),
 	})); err != nil {
 		log.Println(err)
 	}
@@ -423,7 +462,7 @@ func (fe *frontendServer) logoutHandler(w http.ResponseWriter, r *http.Request) 
 		c.MaxAge = -1
 		http.SetCookie(w, c)
 	}
-	w.Header().Set("Location", baseUrl + "/")
+	w.Header().Set("Location", baseUrl+"/")
 	w.WriteHeader(http.StatusFound)
 }
 
