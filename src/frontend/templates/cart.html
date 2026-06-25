@@ -207,36 +207,75 @@
                             </div>
                         </div>
 
-                        <!--
-                            NEW — Coupon code input field
-                            This sits just above the Place Order button.
-                            The name="coupon_code" must match exactly what
-                            placeOrderHandler reads via r.FormValue("coupon_code").
-                            The field is optional — leaving it blank means no coupon.
-                        -->
-                        <div class="row">
+                        <!-- =========================================
+                             NEW — Coupon Code Section
+                             Placed just above the Place Order button.
+
+                             Three behaviours:
+                             1. coupon_error is set  → show red error box
+                                (user typed a bad code, was redirected back)
+                             2. last_coupon is set   → pre-fill the input
+                                (preserves what the user typed after redirect)
+                             3. Neither set          → clean empty field
+
+                             Available coupons (shown as hint to user):
+                               SAVE10  → 10 off  (bug: treated as $10 USD)
+                               SAVE50  → 50 off  (bug: treated as $50 USD)
+                               SAVE100 → 100 off (bug: treated as $100 USD)
+
+                             THE BUG is invisible here — user sees normal
+                             discount description. The wrong amount only
+                             appears on the confirmation page after checkout.
+                        ========================================= -->
+                        <div class="row" style="margin-top: 16px;">
                             <div class="col">
                                 <h3 class="payment-method-heading">Coupon Code</h3>
                             </div>
                         </div>
 
+                        {{ if $.coupon_error }}
+                        <!-- ERROR STATE: invalid coupon was submitted -->
+                        <div class="form-row">
+                            <div class="col">
+                                <div style="
+                                    background-color: #f8d7da;
+                                    border: 1px solid #f5c6cb;
+                                    color: #721c24;
+                                    padding: 10px 14px;
+                                    border-radius: 4px;
+                                    margin-bottom: 10px;
+                                    font-size: 0.9em;
+                                ">
+                                    ✗ {{ $.coupon_error }}
+                                </div>
+                            </div>
+                        </div>
+                        {{ end }}
+
                         <div class="form-row">
                             <div class="col cymbal-form-field">
-                                <label for="coupon_code">Have a coupon?</label>
+                                <label for="coupon_code">Have a coupon? (optional)</label>
                                 <input
                                     type="text"
                                     id="coupon_code"
                                     name="coupon_code"
-                                    placeholder="Enter coupon code (optional)"
+                                    placeholder="Enter coupon code"
                                     maxlength="20"
+                                    value="{{ $.last_coupon }}"
                                     style="text-transform: uppercase;"
                                 >
-                                <small style="color: #6c757d; font-size: 0.85em;">
-                                    Try: SAVE10, SAVE50, SAVE100
+                                <!-- Coupon descriptions shown as hints -->
+                                <!-- NOTE: descriptions intentionally omit currency -->
+                                <!-- so user does not know the bug exists -->
+                                <small style="color: #6c757d; font-size: 0.82em; line-height: 1.6; display: block; margin-top: 4px;">
+                                    Available coupons:<br>
+                                    <strong>SAVE10</strong> — Save 10 off your order<br>
+                                    <strong>SAVE50</strong> — Save 50 off your order<br>
+                                    <strong>SAVE100</strong> — Save 100 off your order
                                 </small>
                             </div>
                         </div>
-                        <!-- END NEW coupon section -->
+                        <!-- END coupon section -->
 
                         <div class="form-row justify-content-center">
                             <div class="col text-center">
