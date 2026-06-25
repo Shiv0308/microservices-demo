@@ -1,17 +1,6 @@
 <!--
  Copyright 2020 Google LLC
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
+ Licensed under the Apache License, Version 2.0
 -->
 
 {{ define "order" }}
@@ -19,14 +8,13 @@
     {{ template "header" . }}
 
     <div {{ with $.platform_css }} class="{{.}}" {{ end }}>
-        <span class="platform-flag">
-            {{$.platform_name}}
-        </span>
+        <span class="platform-flag" aria-hidden="true">{{$.platform_name}}</span>
     </div>
 
-    <main role="main" class="order">
+    <main role="main" class="order" aria-label="Order confirmation page">
 
-        <section class="container order-complete-section">
+        <section class="container order-complete-section" aria-label="Order complete details">
+
             <div class="row">
                 <div class="col-12 text-center">
                     <h3>Your order is complete!</h3>
@@ -36,80 +24,53 @@
                 </div>
             </div>
 
-            <div class="row border-bottom-solid padding-y-24">
+            <div class="row border-bottom-solid padding-y-24"
+                 aria-label="Order confirmation number: {{.order.OrderId}}">
                 <div class="col-6 pl-md-0">Confirmation #</div>
                 <div class="col-6 pr-md-0 text-right">{{.order.OrderId}}</div>
             </div>
 
-            <div class="row border-bottom-solid padding-y-24">
+            <div class="row border-bottom-solid padding-y-24"
+                 aria-label="Shipping tracking number: {{.order.ShippingTrackingId}}">
                 <div class="col-6 pl-md-0">Tracking #</div>
                 <div class="col-6 pr-md-0 text-right">{{.order.ShippingTrackingId}}</div>
             </div>
 
-            <!-- =========================================
-                 NEW — Coupon discount row
-                 Only rendered when coupon_code_used is not empty
-                 meaning a valid coupon was actually applied.
-
-                 .discount_amount is a pb.Money struct returned by
-                 checkoutservice in OrderResult.DiscountAmount.
-                 It is always POSITIVE (e.g. Units=830 for INR).
-                 We prefix a minus sign manually in the template
-                 so it displays as  "- ₹830.00"
-
-                 THE BUG IS VISIBLE HERE:
-                 For INR users with SAVE10, this will show
-                 "- ₹830.00" instead of "- ₹10.00"
-                 because checkoutservice wrongly converted
-                 $10 USD to INR before subtracting.
-
-                 The "Total Paid" row below will also reflect
-                 the inflated discount — making the order
-                 appear nearly free for large currency rates.
-            ========================================= -->
             {{ if .coupon_code_used }}
-            <div class="row border-bottom-solid padding-y-24">
-                <div class="col-6 pl-md-0" style="color: #28a745;">
+            <div class="row border-bottom-solid padding-y-24"
+                 role="status"
+                 aria-label="Coupon discount applied: {{ .coupon_code_used }}, saving {{ renderMoney .discount_amount }}">
+                <div class="col-6 pl-md-0" style="color:#28a745;">
                     Coupon Discount
-                    <span style="
-                        background-color: #d4edda;
-                        color: #155724;
-                        padding: 2px 8px;
-                        border-radius: 4px;
-                        font-size: 0.82em;
-                        font-weight: bold;
-                        margin-left: 6px;
-                    ">{{ .coupon_code_used }}</span>
+                    <span aria-hidden="true" style="background-color:#d4edda;color:#155724;padding:2px 8px;border-radius:4px;font-size:0.82em;font-weight:bold;margin-left:6px;">
+                        {{ .coupon_code_used }}
+                    </span>
                 </div>
-                <div class="col-6 pr-md-0 text-right" style="color: #28a745;">
-                    <!-- discount_amount is positive, we add the minus sign here -->
+                <div class="col-6 pr-md-0 text-right" style="color:#28a745;">
                     - {{ renderMoney .discount_amount }}
                 </div>
             </div>
             {{ end }}
-            <!-- END coupon row -->
 
-            <div class="row padding-y-24">
+            <div class="row padding-y-24"
+                 aria-label="Total amount paid: {{ renderMoney .total_paid }}">
                 <div class="col-6 pl-md-0">Total Paid</div>
                 <div class="col-6 pr-md-0 text-right">
-                    <!-- 
-                        total_paid is calculated in handlers.go as:
-                        shipping + items - discount_amount
-                        So this already reflects the discounted price.
-                        For INR users with SAVE10 this will be
-                        drastically lower than expected due to the bug.
-                    -->
-                    {{renderMoney .total_paid}}
+                    {{ renderMoney .total_paid }}
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-12 text-center">
-                    <a class="cymbal-button-primary" href="{{ $.baseUrl }}/" role="button">
+                    <a class="cymbal-button-primary"
+                       href="{{ $.baseUrl }}/"
+                       role="button"
+                       aria-label="Continue shopping, return to home page">
                         Continue Shopping
                     </a>
                 </div>
             </div>
+
         </section>
 
         {{ if $.recommendations }}
