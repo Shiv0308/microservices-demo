@@ -66,9 +66,12 @@
             {{ end }}
 
             <div class="row border-bottom-solid padding-y-24"
-                 aria-label="Shipping cost: {{ renderMoney .order.ShippingCost }}">
+                 aria-label="Shipping cost: {{ renderMoney .order.ShippingCost }}"
+                 data-shipping-amount="{{ renderMoney .order.ShippingCost }}">
                 <div class="col-6 pl-md-0">Shipping</div>
-                <div class="col-6 pr-md-0 text-right">
+                <div class="col-6 pr-md-0 text-right"
+                     aria-label="Shipping cost amount: {{ renderMoney .order.ShippingCost }}"
+                     data-amount="{{ renderMoney .order.ShippingCost }}">
                     {{ renderMoney .order.ShippingCost }}
                 </div>
             </div>
@@ -76,23 +79,31 @@
             {{ if .coupon_code_used }}
             <div class="row border-bottom-solid padding-y-24"
                  role="status"
-                 aria-label="Coupon discount applied: {{ .coupon_code_used }}, saving {{ renderMoney .discount_amount }}">
+                 aria-label="Coupon discount applied: {{ .coupon_code_used }}, saving {{ renderMoney .discount_amount }}"
+                 data-coupon-code="{{ .coupon_code_used }}"
+                 data-discount-amount="- {{ renderMoney .discount_amount }}">
                 <div class="col-6 pl-md-0" style="color:#28a745;">
                     Coupon Discount
                     <span aria-hidden="true" style="background-color:#d4edda;color:#155724;padding:2px 8px;border-radius:4px;font-size:0.82em;font-weight:bold;margin-left:6px;">
                         {{ .coupon_code_used }}
                     </span>
                 </div>
-                <div class="col-6 pr-md-0 text-right" style="color:#28a745;">
+                <div class="col-6 pr-md-0 text-right"
+                     style="color:#28a745;"
+                     aria-label="Coupon discount amount: - {{ renderMoney .discount_amount }}"
+                     data-amount="- {{ renderMoney .discount_amount }}">
                     - {{ renderMoney .discount_amount }}
                 </div>
             </div>
             {{ end }}
 
             <div class="row padding-y-24"
-                 aria-label="Total amount paid: {{ renderMoney .total_paid }}">
+                 aria-label="Total amount paid: {{ renderMoney .total_paid }}"
+                 data-total-paid="{{ renderMoney .total_paid }}">
                 <div class="col-6 pl-md-0">Total</div>
-                <div class="col-6 pr-md-0 text-right">
+                <div class="col-6 pr-md-0 text-right"
+                     aria-label="Total amount paid: {{ renderMoney .total_paid }}"
+                     data-amount="{{ renderMoney .total_paid }}">
                     {{ renderMoney .total_paid }}
                 </div>
             </div>
