@@ -268,9 +268,6 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 	couponProvided := req.CouponCode != ""
 	couponCode := req.CouponCode
-	if couponCode == "" {
-		couponCode = "SAVE10"
-	}
 
 	if couponCode != "" {
 		couponValue, ok := coupons[couponCode]
