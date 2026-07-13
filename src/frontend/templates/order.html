@@ -37,7 +37,7 @@
             </div>
 
             {{ if $.order_items }}
-            <div class="row border-bottom-solid padding-y-24" aria-label="Items in this order">
+            <section class="row border-bottom-solid padding-y-24" aria-label="Items in this order">
                 <div class="col-12 pl-md-0 pr-md-0">
                     <ul aria-label="Ordered items" style="list-style:none;padding:0;margin:0;">
                     {{ range $.order_items }}
@@ -62,7 +62,7 @@
                     {{ end }}
                     </ul>
                 </div>
-            </div>
+            </section>
             {{ end }}
 
             <div class="row border-bottom-solid padding-y-24"
