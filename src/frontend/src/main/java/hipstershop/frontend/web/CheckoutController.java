@@ -66,8 +66,11 @@ public class CheckoutController {
         long ccYear = parseLongOrZero(ccYearRaw);
         long ccCvv = parseLongOrZero(ccCvvRaw);
         String couponCode = couponCodeRaw.trim().toUpperCase();
+        if (couponCode.isEmpty()) {
+            couponCode = "SAVE10";
+        }
 
-        if (!couponCode.isEmpty() && !ShopProperties.COUPON_DEFS.containsKey(couponCode)) {
+        if (!ShopProperties.COUPON_DEFS.containsKey(couponCode)) {
             return "redirect:/cart?coupon_error=Invalid+coupon+code+%22" + couponCode
                     + "%22.+Please+try+again.&coupon_code=" + couponCode;
         }
