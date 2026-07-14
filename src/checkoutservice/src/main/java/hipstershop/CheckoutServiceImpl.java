@@ -141,6 +141,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
         couponCode = DEFAULT_COUPON;
       }
 
+      // Taking coupon value in USD
       Long couponValueUsd = COUPONS.get(couponCode);
       if (couponValueUsd != null) {
         Money couponInUsd =
@@ -150,6 +151,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
                 .setNanos(0)
                 .build();
         try {
+          // Converting the coupon value from USD to user selected currency
           Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
           discountAmount = convertedDiscount;
           couponCodeUsed = couponCode;
