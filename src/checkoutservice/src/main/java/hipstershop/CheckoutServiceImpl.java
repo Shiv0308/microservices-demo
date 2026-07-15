@@ -60,7 +60,6 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
   private static final Logger logger = LogManager.getLogger(CheckoutServiceImpl.class);
 
   private static final String USD_CURRENCY = "USD";
-  private static final String DEFAULT_COUPON = "SAVE10";
 
   /**
    * Coupon codes and their whole-dollar (USD) discount. The value is converted into the user's
@@ -135,13 +134,8 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      // Default to SAVE10 when the client submits no coupon (matches Go).
       String couponCode = req.getCouponCode();
-      if (couponCode == null || couponCode.isEmpty()) {
-        couponCode = DEFAULT_COUPON;
-      }
-
-      Long couponValueUsd = COUPONS.get(couponCode);
+      Long couponValueUsd = couponCode == null || couponCode.isEmpty() ? null : COUPONS.get(couponCode);
       if (couponValueUsd != null) {
         Money couponInUsd =
             Money.newBuilder()
@@ -168,7 +162,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
           // failing the whole order.
           logger.info("failed to convert coupon currency: {}", e.getStatus());
         }
-      } else {
+      } else if (couponCode != null && !couponCode.isEmpty()) {
         logger.info("coupon code \"{}\" not found, skipping discount", couponCode);
       }
 

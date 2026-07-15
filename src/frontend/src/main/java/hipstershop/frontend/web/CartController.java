@@ -10,6 +10,8 @@ import hipstershop.frontend.validation.ValidationUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Validator;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,25 +33,28 @@ public class CartController {
     private final ShopProperties shopProperties;
     private final Validator validator;
     private final ErrorRenderer errorRenderer;
+    private final MoneyFormatter moneyFormatter;
 
     public CartController(
             FrontendGrpcClient grpcClient, ShopProperties shopProperties, Validator validator,
-            ErrorRenderer errorRenderer) {
+            ErrorRenderer errorRenderer, MoneyFormatter moneyFormatter) {
         this.grpcClient = grpcClient;
         this.shopProperties = shopProperties;
         this.validator = validator;
         this.errorRenderer = errorRenderer;
+        this.moneyFormatter = moneyFormatter;
     }
 
     @GetMapping("/cart")
     public String viewCart(
             @RequestParam(value = "coupon_error", required = false, defaultValue = "") String couponError,
-            @RequestParam(value = "coupon_code", required = false, defaultValue = "") String lastCoupon,
+            @RequestParam(value = "coupon_code", required = false, defaultValue = "") String lastCouponRaw,
             HttpServletRequest request,
             HttpServletResponse response,
             Model model) {
         log.debug("view user cart");
         String currentCurrency = CurrencyUtil.currentCurrency(request, shopProperties);
+        String lastCoupon = normalizeCouponCode(lastCouponRaw);
 
         List<String> currencies;
         try {
@@ -81,7 +86,7 @@ public class CartController {
         }
 
         List<LineItemView> items = new ArrayList<>(cart.size());
-        Hipstershop.Money totalPrice = Hipstershop.Money.newBuilder().setCurrencyCode(currentCurrency).build();
+        Hipstershop.Money itemSubtotal = zero(currentCurrency);
         for (Hipstershop.CartItem item : cart) {
             Hipstershop.Product p;
             try {
@@ -99,9 +104,22 @@ public class CartController {
             }
             Hipstershop.Money multPrice = Money.multiplySlow(price, item.getQuantity());
             items.add(new LineItemView(p, item.getQuantity(), multPrice));
-            totalPrice = Money.sum(totalPrice, multPrice);
+            itemSubtotal = Money.sum(itemSubtotal, multPrice);
         }
-        totalPrice = Money.sum(totalPrice, shippingCost);
+
+        Hipstershop.Money totalPrice = Money.sum(itemSubtotal, shippingCost);
+        String couponCodeUsed = "";
+        Hipstershop.Money discountAmount = zero(currentCurrency);
+        long couponDiscountDisplay = 0;
+        if (!lastCoupon.isEmpty() && couponError.isEmpty()) {
+            ShopProperties.CouponDef def = ShopProperties.COUPON_DEFS.get(lastCoupon);
+            if (def != null && isCouponEligible(itemSubtotal, currentCurrency, def)) {
+                discountAmount = minMoney(itemSubtotal, money(currentCurrency, def.discountUsd()));
+                totalPrice = Money.sum(totalPrice, Money.negate(discountAmount));
+                couponCodeUsed = lastCoupon;
+                couponDiscountDisplay = discountAmount.getUnits();
+            }
+        }
         int year = Year.now().getValue();
 
         List<CouponOptionView> couponOptions = new ArrayList<>();
@@ -121,6 +139,9 @@ public class CartController {
         model.addAttribute("coupon_error", couponError);
         model.addAttribute("last_coupon", lastCoupon);
         model.addAttribute("coupon_options", couponOptions);
+        model.addAttribute("discount_amount", discountAmount);
+        model.addAttribute("coupon_code_used", couponCodeUsed);
+        model.addAttribute("coupon_discount_display", couponDiscountDisplay);
         return "cart";
     }
 
@@ -165,6 +186,89 @@ public class CartController {
             return errorRenderer.render(response, model, "failed to empty cart", e, 500);
         }
         return "redirect:/";
+    }
+
+    @PostMapping("/cart/apply-coupon")
+    public String applyCoupon(
+            @RequestParam(value = "coupon_code", required = false, defaultValue = "") String couponCodeRaw,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Model model) {
+        String couponCode = normalizeCouponCode(couponCodeRaw);
+        if (couponCode.isEmpty()) {
+            return "redirect:/cart";
+        }
+
+        ShopProperties.CouponDef couponDef = ShopProperties.COUPON_DEFS.get(couponCode);
+        if (couponDef == null) {
+            return "redirect:/cart?coupon_error="
+                    + urlEncode("Invalid coupon code \"" + couponCode + "\". Please try again.")
+                    + "&coupon_code=" + urlEncode(couponCode);
+        }
+
+        String currentCurrency = CurrencyUtil.currentCurrency(request, shopProperties);
+        Hipstershop.Money itemSubtotal;
+        try {
+            itemSubtotal = getItemSubtotal(request, currentCurrency);
+        } catch (Exception e) {
+            return errorRenderer.render(response, model, "could not verify coupon eligibility", e, 500);
+        }
+
+        if (!isCouponEligible(itemSubtotal, currentCurrency, couponDef)) {
+            String minOrderMessage = "Coupon code \"" + couponCode + "\" requires an order of at least "
+                    + moneyFormatter.renderCurrencyLogo(currentCurrency) + couponDef.minOrderUsd() + ". Please try again.";
+            return "redirect:/cart?coupon_error=" + urlEncode(minOrderMessage)
+                    + "&coupon_code=" + urlEncode(couponCode);
+        }
+
+        return "redirect:/cart?coupon_code=" + urlEncode(couponCode);
+    }
+
+    private String normalizeCouponCode(String couponCodeRaw) {
+        return couponCodeRaw == null ? "" : couponCodeRaw.trim().toUpperCase();
+    }
+
+    private Hipstershop.Money getItemSubtotal(HttpServletRequest request, String currencyCode) {
+        List<Hipstershop.CartItem> cart = grpcClient.getCart(SessionContext.sessionId(request));
+        Hipstershop.Money itemSubtotal = zero(currencyCode);
+        for (Hipstershop.CartItem item : cart) {
+            Hipstershop.Product product = grpcClient.getProduct(item.getProductId());
+            Hipstershop.Money localizedPrice = grpcClient.convertCurrency(product.getPriceUsd(), currencyCode);
+            itemSubtotal = Money.sum(itemSubtotal, Money.multiplySlow(localizedPrice, item.getQuantity()));
+        }
+        return itemSubtotal;
+    }
+
+    private boolean isCouponEligible(
+            Hipstershop.Money itemSubtotal, String currencyCode, ShopProperties.CouponDef couponDef) {
+        return compareMoney(itemSubtotal, money(currencyCode, couponDef.minOrderUsd())) >= 0;
+    }
+
+    private Hipstershop.Money minMoney(Hipstershop.Money left, Hipstershop.Money right) {
+        return compareMoney(left, right) <= 0 ? left : right;
+    }
+
+    private int compareMoney(Hipstershop.Money left, Hipstershop.Money right) {
+        if (!left.getCurrencyCode().equals(right.getCurrencyCode())) {
+            throw new IllegalArgumentException("mismatching currency codes");
+        }
+        int unitsCompare = Long.compare(left.getUnits(), right.getUnits());
+        if (unitsCompare != 0) {
+            return unitsCompare;
+        }
+        return Integer.compare(left.getNanos(), right.getNanos());
+    }
+
+    private Hipstershop.Money zero(String currencyCode) {
+        return Hipstershop.Money.newBuilder().setCurrencyCode(currencyCode).build();
+    }
+
+    private Hipstershop.Money money(String currencyCode, long units) {
+        return Hipstershop.Money.newBuilder().setCurrencyCode(currencyCode).setUnits(units).build();
+    }
+
+    private String urlEncode(String value) {
+        return value == null ? "" : URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private long parseUnsignedLongOrZero(String raw) {
