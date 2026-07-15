@@ -75,19 +75,15 @@ public class CheckoutController {
                 return "redirect:/cart?coupon_error=Invalid+coupon+code+%22" + couponCode
                         + "%22.+Please+try+again.&coupon_code=" + couponCode;
             }
-            long orderSubtotalUsd;
             try {
-                orderSubtotalUsd = getOrderSubtotalUsd(request);
+                if (!isCouponEligible(request, couponDef)) {
+                    String currencyLogo = moneyFormatter.renderCurrencyLogo(
+                            CurrencyUtil.currentCurrency(request, shopProperties));
+                    return "redirect:/cart?coupon_error=Coupon+code+%22" + couponCode + "%22+requires+an+order+of+at+least+"
+                            + urlEncode(currencyLogo) + couponDef.minOrderUsd() + ".+Please+try+again.&coupon_code=" + couponCode;
+                }
             } catch (Exception e) {
                 return errorRenderer.render(response, model, "could not verify coupon eligibility", e, 500);
-            }
-            // minOrderUsd is a flat USD threshold, so it must be checked against a USD
-            // subtotal regardless of which currency the shopper is currently browsing in.
-            if (orderSubtotalUsd < couponDef.minOrderUsd()) {
-                String currencyLogo = moneyFormatter.renderCurrencyLogo(
-                        CurrencyUtil.currentCurrency(request, shopProperties));
-                return "redirect:/cart?coupon_error=Coupon+code+%22" + couponCode + "%22+requires+an+order+of+at+least+"
-                        + urlEncode(currencyLogo) + couponDef.minOrderUsd() + ".+Please+try+again.&coupon_code=" + couponCode;
             }
         }
 
@@ -212,16 +208,27 @@ public class CheckoutController {
         return "order";
     }
 
-    /** Cart items' price_usd plus shipping cost in USD, ignoring the shopper's display currency. */
-    private long getOrderSubtotalUsd(HttpServletRequest request) {
+    private boolean isCouponEligible(HttpServletRequest request, ShopProperties.CouponDef couponDef) {
+        Hipstershop.Money productSubtotalUsd = getProductSubtotalUsd(request);
+        return isGreaterThanWholeAmount(productSubtotalUsd, couponDef.minOrderUsd());
+    }
+
+    /** Cart items' price_usd in USD, excluding shipping from coupon eligibility checks. */
+    private Hipstershop.Money getProductSubtotalUsd(HttpServletRequest request) {
         List<Hipstershop.CartItem> cart = grpcClient.getCart(SessionContext.sessionId(request));
         Hipstershop.Money subtotal = Hipstershop.Money.newBuilder().setCurrencyCode("USD").build();
         for (Hipstershop.CartItem item : cart) {
             Hipstershop.Product p = grpcClient.getProduct(item.getProductId());
             subtotal = Money.sum(subtotal, Money.multiplySlow(p.getPriceUsd(), item.getQuantity()));
         }
-        subtotal = Money.sum(subtotal, grpcClient.getShippingQuote(cart, "USD"));
-        return subtotal.getUnits();
+        return subtotal;
+    }
+
+    private boolean isGreaterThanWholeAmount(Hipstershop.Money amount, long thresholdUnits) {
+        if (amount.getUnits() != thresholdUnits) {
+            return amount.getUnits() > thresholdUnits;
+        }
+        return amount.getNanos() > 0;
     }
 
     private long parseLongOrZero(String raw) {
