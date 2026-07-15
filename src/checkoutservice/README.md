@@ -55,8 +55,9 @@ Any missing required variable causes an immediate startup failure (fail-fast), m
 
 - Downstream channels are plaintext (`usePlaintext()`), matching the Go insecure credentials —
   transport security is expected from the service mesh, not the app.
-- The coupon feature is preserved: `SAVE10` / `SAVE50` / `SAVE100` (whole-dollar USD discounts,
-  converted to the user's currency), defaulting to `SAVE10` when no code is sent, and the charged
-  total is floored at zero so payment never receives a negative amount.
+- The coupon feature is preserved: `SAVE10` / `SAVE50` / `SAVE100` deduct their flat number
+  (10 / 50 / 100) directly in the shopper's currency, with no currency conversion. No coupon is
+  applied unless the client sends a matching code — an empty or unrecognized code simply skips the
+  discount. The charged total is floored at zero so payment never receives a negative amount.
 - Money is handled with integer units + nanos (never floats) via `MoneyUtil`, a direct port of the
   Go `money` package's carry/sign normalization.
