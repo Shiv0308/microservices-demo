@@ -81,7 +81,17 @@
                     <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(shipping_cost)}">$0.00</div>
                 </div>
 
-                <div class="row cart-summary-total-row" aria-label="Order total before discount">
+                <div class="row cart-summary-total-row"
+                     th:if="${not #strings.isEmpty(coupon_code_used)}"
+                     th:attr="aria-label=|Coupon discount applied: ${coupon_code_used}|">
+                    <div class="col pl-md-0">Discount (<span th:text="${coupon_code_used}">SAVE10</span>)</div>
+                    <div class="col pr-md-0 text-right" aria-live="polite">
+                        -<span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${coupon_discount_display}">10</span>
+                    </div>
+                </div>
+
+                <div class="row cart-summary-total-row"
+                     th:attr="aria-label=${#strings.isEmpty(coupon_code_used) ? 'Order total before discount' : 'Order total after discount'}">
                     <div class="col pl-md-0">Total</div>
                     <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(total_cost)}">$0.00</div>
                 </div>
@@ -91,7 +101,7 @@
             <div class="col-lg-5 offset-lg-1 col-xl-4">
 
                 <form class="cart-checkout-form"
-                      th:action="@{/cart/checkout}"
+                      th:action="@{/cart/apply-coupon}"
                       method="POST"
                       aria-label="Checkout form">
 
@@ -237,8 +247,8 @@
                             <span aria-hidden="true">&#10007;</span> <span th:text="${coupon_error}"></span>
                         </div>
 
-                        <div class="form-row">
-                            <div class="col cymbal-form-field">
+                        <div class="form-row align-items-start">
+                            <div class="col-md-8 cymbal-form-field">
                                 <label for="coupon_code">Have a coupon? (optional)</label>
                                 <input type="text"
                                        id="coupon_code"
@@ -258,6 +268,14 @@
                                     </th:block>
                                 </small>
                             </div>
+                            <div class="col-md-4 cymbal-form-field d-flex align-items-end">
+                                <button class="cymbal-button-secondary"
+                                        type="submit"
+                                        formnovalidate
+                                        aria-label="Apply coupon code to cart">
+                                    Apply Coupon
+                                </button>
+                            </div>
                         </div>
                     </fieldset>
 
@@ -265,6 +283,8 @@
                         <div class="col text-center">
                             <button class="cymbal-button-primary"
                                     type="submit"
+                                    th:formaction="@{/cart/checkout}"
+                                    formmethod="post"
                                     aria-label="Place your order and proceed to payment">
                                 Place Order
                             </button>
