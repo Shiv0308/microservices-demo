@@ -60,17 +60,22 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
   private static final Logger logger = LogManager.getLogger(CheckoutServiceImpl.class);
 
   private static final String USD_CURRENCY = "USD";
-  private static final String DEFAULT_COUPON = "SAVE10";
 
   /**
    * Coupon codes and their whole-dollar (USD) discount. The value is converted into the user's
-   * currency before being applied. Mirrors the map in the Go checkoutservice.
+   * currency before being applied.
    */
   private static final Map<String, Long> COUPONS =
       Map.of(
           "SAVE10", 10L,
           "SAVE50", 50L,
           "SAVE100", 100L);
+
+  private static final Map<String, Long> COUPON_MIN_ORDER_USD =
+      Map.of(
+          "SAVE10", 50L,
+          "SAVE50", 200L,
+          "SAVE100", 350L);
 
   private final List<ManagedChannel> channels = new ArrayList<>();
 
@@ -129,47 +134,50 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       // ---------------------------------------------------------------
       // Coupon validation and discount application.
       //
-      // discountAmount / couponCodeUsed stay zero/empty unless a valid
-      // coupon is applied, so the order proceeds at full price otherwise.
+      // discountAmount / couponCodeUsed stay zero/empty unless a valid,
+      // eligible coupon is applied.
       // ---------------------------------------------------------------
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      // Default to SAVE10 when the client submits no coupon (matches Go).
-      String couponCode = req.getCouponCode();
-      if (couponCode == null || couponCode.isEmpty()) {
-        couponCode = DEFAULT_COUPON;
-      }
+      String couponCode = normalizeCouponCode(req.getCouponCode());
+      if (!couponCode.isEmpty()) {
+        Long couponValueUsd = COUPONS.get(couponCode);
+        if (couponValueUsd == null) {
+          throw Status.INVALID_ARGUMENT
+              .withDescription("Invalid coupon code \"" + couponCode + "\". Please try again.")
+              .asRuntimeException();
+        }
 
-      Long couponValueUsd = COUPONS.get(couponCode);
-      if (couponValueUsd != null) {
+        long minOrderUsd = COUPON_MIN_ORDER_USD.getOrDefault(couponCode, 0L);
+        Money productSubtotalUsd = getProductSubtotalUsd(prep.cartItems);
+        if (!isGreaterThanWholeAmount(productSubtotalUsd, minOrderUsd)) {
+          throw Status.FAILED_PRECONDITION
+              .withDescription(
+                  "Coupon code \""
+                      + couponCode
+                      + "\" requires an order of at least $"
+                      + minOrderUsd
+                      + ". Please try again.")
+              .asRuntimeException();
+        }
+
         Money couponInUsd =
             Money.newBuilder()
                 .setCurrencyCode(USD_CURRENCY)
                 .setUnits(couponValueUsd)
                 .setNanos(0)
                 .build();
-        try {
-          Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
-          discountAmount = convertedDiscount;
-          couponCodeUsed = couponCode;
+        Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
+        discountAmount = convertedDiscount;
+        couponCodeUsed = couponCode;
 
-          // Apply the discount, but never let the charged total go negative —
-          // paymentservice must not receive a negative amount.
-          Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
-          if (!MoneyUtil.isNegative(newTotal)) {
-            total = newTotal;
-          } else {
-            // Discount exceeds the total: the order is free.
-            total = MoneyUtil.zero(req.getUserCurrency());
-          }
-        } catch (StatusRuntimeException e) {
-          // A currency-conversion failure just skips the discount rather than
-          // failing the whole order.
-          logger.info("failed to convert coupon currency: {}", e.getStatus());
+        Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
+        if (!MoneyUtil.isNegative(newTotal)) {
+          total = newTotal;
+        } else {
+          total = MoneyUtil.zero(req.getUserCurrency());
         }
-      } else {
-        logger.info("coupon code \"{}\" not found, skipping discount", couponCode);
       }
 
       String txId = chargeCard(total, req.getCreditCard());
@@ -238,6 +246,28 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
     out.shippingCostLocalized = convertCurrency(shippingUsd, userCurrency);
 
     return out;
+  }
+
+  private String normalizeCouponCode(String couponCode) {
+    return couponCode == null ? "" : couponCode.trim().toUpperCase();
+  }
+
+  private Money getProductSubtotalUsd(List<CartItem> cartItems) {
+    Money subtotal = MoneyUtil.zero(USD_CURRENCY);
+    for (CartItem item : cartItems) {
+      Product product =
+          catalogStub.getProduct(GetProductRequest.newBuilder().setId(item.getProductId()).build());
+      subtotal =
+          MoneyUtil.sum(subtotal, MoneyUtil.multiplySlow(product.getPriceUsd(), item.getQuantity()));
+    }
+    return subtotal;
+  }
+
+  private boolean isGreaterThanWholeAmount(Money amount, long thresholdUnits) {
+    if (amount.getUnits() != thresholdUnits) {
+      return amount.getUnits() > thresholdUnits;
+    }
+    return amount.getNanos() > 0;
   }
 
   private List<CartItem> getUserCart(String userId) {
