@@ -212,7 +212,7 @@ public class CheckoutController {
         return "order";
     }
 
-    /** Cart items' price_usd plus shipping cost in USD, ignoring the shopper's display currency. */
+    /** Cart items' price_usd in USD before shipping, ignoring the shopper's display currency. */
     private long getOrderSubtotalUsd(HttpServletRequest request) {
         List<Hipstershop.CartItem> cart = grpcClient.getCart(SessionContext.sessionId(request));
         Hipstershop.Money subtotal = Hipstershop.Money.newBuilder().setCurrencyCode("USD").build();
@@ -220,7 +220,6 @@ public class CheckoutController {
             Hipstershop.Product p = grpcClient.getProduct(item.getProductId());
             subtotal = Money.sum(subtotal, Money.multiplySlow(p.getPriceUsd(), item.getQuantity()));
         }
-        subtotal = Money.sum(subtotal, grpcClient.getShippingQuote(cart, "USD"));
         return subtotal.getUnits();
     }
 

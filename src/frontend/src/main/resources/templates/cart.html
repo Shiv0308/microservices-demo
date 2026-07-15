@@ -76,12 +76,29 @@
                 </li>
                 </ul>
 
+                <div class="row cart-summary-subtotal-row" aria-label="Product subtotal before shipping">
+                    <div class="col pl-md-0">Subtotal</div>
+                    <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(subtotal_cost)}">$0.00</div>
+                </div>
+
                 <div class="row cart-summary-shipping-row" aria-label="Shipping cost">
                     <div class="col pl-md-0">Shipping</div>
                     <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(shipping_cost)}">$0.00</div>
                 </div>
 
-                <div class="row cart-summary-total-row" aria-label="Order total before discount">
+                <div class="row cart-summary-discount-row"
+                     role="status"
+                     th:if="${not #strings.isEmpty(coupon_code_used)}"
+                     th:aria-label="'Coupon discount applied: ' + ${coupon_code_used} + ', saving ' + ${moneyFormatter.renderMoney(coupon_discount)}">
+                    <div class="col pl-md-0" style="color:#28a745;">
+                        Coupon Discount
+                        <span aria-hidden="true" style="background-color:#d4edda;color:#155724;padding:2px 8px;border-radius:4px;font-size:0.82em;font-weight:bold;margin-left:6px;"
+                              th:text="${coupon_code_used}">SAVE10</span>
+                    </div>
+                    <div class="col pr-md-0 text-right" style="color:#28a745;" th:text="'- ' + ${moneyFormatter.renderMoney(coupon_discount)}">- $0.00</div>
+                </div>
+
+                <div class="row cart-summary-total-row" aria-label="Order total after coupon validation">
                     <div class="col pl-md-0">Total</div>
                     <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(total_cost)}">$0.00</div>
                 </div>
@@ -90,10 +107,16 @@
 
             <div class="col-lg-5 offset-lg-1 col-xl-4">
 
+                <form id="coupon-preview-form"
+                      th:action="@{/cart}"
+                      method="GET"
+                      aria-label="Apply coupon on the cart page"></form>
+
                 <form class="cart-checkout-form"
                       th:action="@{/cart/checkout}"
                       method="POST"
                       aria-label="Checkout form">
+                    <input type="hidden" name="coupon_code" th:value="${coupon_code_used}">
 
                     <fieldset>
                         <legend><h3>Shipping Address</h3></legend>
@@ -240,21 +263,31 @@
                         <div class="form-row">
                             <div class="col cymbal-form-field">
                                 <label for="coupon_code">Have a coupon? (optional)</label>
-                                <input type="text"
-                                       id="coupon_code"
-                                       name="coupon_code"
-                                       placeholder="Enter coupon code"
-                                       maxlength="20"
-                                       th:value="${last_coupon}"
-                                       aria-label="Optional coupon code"
-                                       aria-describedby="coupon-hint"
-                                       autocomplete="off"
-                                       style="text-transform:uppercase;">
+                                <div style="display:flex;gap:10px;align-items:flex-start;">
+                                    <input type="text"
+                                           id="coupon_code"
+                                           name="coupon_code"
+                                           form="coupon-preview-form"
+                                           placeholder="Enter coupon code"
+                                           maxlength="20"
+                                           th:value="${last_coupon}"
+                                           aria-label="Optional coupon code"
+                                           aria-describedby="coupon-hint"
+                                           autocomplete="off"
+                                           style="text-transform:uppercase;flex:1;">
+                                    <button class="cymbal-button-secondary"
+                                            type="submit"
+                                            form="coupon-preview-form"
+                                            aria-label="Apply coupon to current cart">
+                                        Apply
+                                    </button>
+                                </div>
                                 <small id="coupon-hint"
                                        style="color:#6c757d;font-size:0.82em;line-height:1.6;display:block;margin-top:4px;">
+                                    Coupon rules are validated against the product subtotal before shipping.<br>
                                     Available coupons:<br>
                                     <th:block th:each="opt : ${coupon_options}">
-                                    <strong th:text="${opt.code}">SAVE10</strong> &mdash; Save <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.discountUsd}">10</span> off orders above <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.minOrderUsd}">50</span> or more<br>
+                                    <strong th:text="${opt.code}">SAVE10</strong> &mdash; Save <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.discountUsd}">10</span> off orders above <span th:text="${moneyFormatter.renderCurrencyLogo('USD')}">$</span><span th:text="${opt.minOrderUsd}">50</span> before shipping<br>
                                     </th:block>
                                 </small>
                             </div>
