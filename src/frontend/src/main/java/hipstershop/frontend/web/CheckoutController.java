@@ -75,21 +75,15 @@ public class CheckoutController {
                 return "redirect:/cart?coupon_error=Invalid+coupon+code+%22" + couponCode
                         + "%22.+Please+try+again.&coupon_code=" + couponCode;
             }
-            String currentCurrency = CurrencyUtil.currentCurrency(request, shopProperties);
-            long orderSubtotal;
             try {
-                orderSubtotal = getOrderSubtotal(request, currentCurrency);
+                if (!isCouponEligible(request, couponDef)) {
+                    String currencyLogo = moneyFormatter.renderCurrencyLogo(
+                            CurrencyUtil.currentCurrency(request, shopProperties));
+                    return "redirect:/cart?coupon_error=Coupon+code+%22" + couponCode + "%22+requires+an+order+of+at+least+"
+                            + urlEncode(currencyLogo) + couponDef.minOrderUsd() + ".+Please+try+again.&coupon_code=" + couponCode;
+                }
             } catch (Exception e) {
                 return errorRenderer.render(response, model, "could not verify coupon eligibility", e, 500);
-            }
-            // minOrderUsd is compared as a flat number directly against the shopper's real,
-            // currency-converted cart total (what's actually displayed on the page) — no
-            // conversion of the threshold itself, matching the cart page's
-            // "Save X off orders above Y" hint text.
-            if (orderSubtotal < couponDef.minOrderUsd()) {
-                String currencyLogo = moneyFormatter.renderCurrencyLogo(currentCurrency);
-                return "redirect:/cart?coupon_error=Coupon+code+%22" + couponCode + "%22+requires+an+order+of+at+least+"
-                        + urlEncode(currencyLogo) + couponDef.minOrderUsd() + ".+Please+try+again.&coupon_code=" + couponCode;
             }
         }
 
@@ -187,9 +181,7 @@ public class CheckoutController {
             return errorRenderer.render(response, model, "could not retrieve currencies", e, 500);
         }
 
-        // Only surface the "Coupon Discount" row when the shopper actually typed a code —
-        // a silently-defaulted coupon still reduces total_paid above, but stays invisible
-        // in the UI since the shopper never asked for it.
+        // Only surface the "Coupon Discount" row when the shopper actually typed a code.
         Hipstershop.Money discountAmount = null;
         String couponCodeUsed = "";
         if (!couponCode.isEmpty()) {
@@ -208,17 +200,27 @@ public class CheckoutController {
         return "order";
     }
 
-    /** Cart items' price plus shipping cost, converted into the shopper's current currency. */
-    private long getOrderSubtotal(HttpServletRequest request, String currency) {
+    private boolean isCouponEligible(HttpServletRequest request, ShopProperties.CouponDef couponDef) {
+        Hipstershop.Money productSubtotalUsd = getProductSubtotalUsd(request);
+        return isGreaterThanWholeAmount(productSubtotalUsd, couponDef.minOrderUsd());
+    }
+
+    /** Cart items' price_usd in USD, excluding shipping from coupon eligibility checks. */
+    private Hipstershop.Money getProductSubtotalUsd(HttpServletRequest request) {
         List<Hipstershop.CartItem> cart = grpcClient.getCart(SessionContext.sessionId(request));
-        Hipstershop.Money subtotal = Hipstershop.Money.newBuilder().setCurrencyCode(currency).build();
+        Hipstershop.Money subtotal = Hipstershop.Money.newBuilder().setCurrencyCode("USD").build();
         for (Hipstershop.CartItem item : cart) {
             Hipstershop.Product p = grpcClient.getProduct(item.getProductId());
-            Hipstershop.Money price = grpcClient.convertCurrency(p.getPriceUsd(), currency);
-            subtotal = Money.sum(subtotal, Money.multiplySlow(price, item.getQuantity()));
+            subtotal = Money.sum(subtotal, Money.multiplySlow(p.getPriceUsd(), item.getQuantity()));
         }
-        subtotal = Money.sum(subtotal, grpcClient.getShippingQuote(cart, currency));
-        return subtotal.getUnits();
+        return subtotal;
+    }
+
+    private boolean isGreaterThanWholeAmount(Hipstershop.Money amount, long thresholdUnits) {
+        if (amount.getUnits() != thresholdUnits) {
+            return amount.getUnits() > thresholdUnits;
+        }
+        return amount.getNanos() > 0;
     }
 
     private long parseLongOrZero(String raw) {
