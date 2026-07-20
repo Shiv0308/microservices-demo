@@ -134,6 +134,11 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       String couponCodeUsed = "";
 
       String couponCode = req.getCouponCode();
+      if (couponCode == null || couponCode.isEmpty()) {
+        logger.info("[PlaceOrder] no coupon code present in request");
+      } else {
+        logger.info("[PlaceOrder] coupon code received: \"{}\"", couponCode);
+      }
       Long couponValueUsd = (couponCode == null || couponCode.isEmpty()) ? null : COUPONS.get(couponCode);
       if (couponValueUsd != null) {
         // Deduct the coupon's flat face value directly in the shopper's currency, with no
