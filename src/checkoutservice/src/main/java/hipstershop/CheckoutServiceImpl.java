@@ -134,14 +134,10 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      // Start from the default coupon; only override it if the client actually sent one.
-      String couponCode = "SAVE10";
       String requestCouponCode = req.getCouponCode();
-      if (requestCouponCode != null && !requestCouponCode.isEmpty()) {
-        couponCode = requestCouponCode;
-      }
+      String couponCode = requestCouponCode == null ? "" : requestCouponCode.trim();
 
-      Long couponValueUsd = COUPONS.get(couponCode);
+      Long couponValueUsd = couponCode.isEmpty() ? null : COUPONS.get(couponCode);
       if (couponValueUsd != null) {
         Money couponInUsd =
             Money.newBuilder()
