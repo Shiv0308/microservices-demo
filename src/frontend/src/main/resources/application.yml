@@ -11,7 +11,7 @@ server:
   servlet:
     context-path: ${BASE_URL:}
   tomcat:
-    basedir: .
+    basedir: /tmp
     accesslog:
       enabled: true
       directory: logs
