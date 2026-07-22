@@ -187,9 +187,8 @@ public class CheckoutController {
             return errorRenderer.render(response, model, "could not retrieve currencies", e, 500);
         }
 
-        // Only surface the "Coupon Discount" row when the shopper actually typed a code —
-        // a silently-defaulted coupon still reduces total_paid above, but stays invisible
-        // in the UI since the shopper never asked for it.
+        // Only surface the "Coupon Discount" row when the shopper actually typed a code.
+        // Orders without a coupon should keep the same total shown in the cart.
         Hipstershop.Money discountAmount = null;
         String couponCodeUsed = "";
         if (!couponCode.isEmpty()) {
