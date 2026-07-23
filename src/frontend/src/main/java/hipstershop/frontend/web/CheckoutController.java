@@ -192,9 +192,17 @@ public class CheckoutController {
         // in the UI since the shopper never asked for it.
         Hipstershop.Money discountAmount = null;
         String couponCodeUsed = "";
+        long couponDiscountDisplay = 0;
         if (!couponCode.isEmpty()) {
             discountAmount = order.getOrder().getDiscountAmount();
             couponCodeUsed = order.getOrder().getCouponCodeUsed();
+            // Show the coupon's flat face value (e.g. "10") rather than the real
+            // currency-converted amount actually deducted, matching the cart page's
+            // coupon hint text and keeping the exact discount amount private.
+            ShopProperties.CouponDef def = ShopProperties.COUPON_DEFS.get(couponCodeUsed);
+            if (def != null) {
+                couponDiscountDisplay = def.discountUsd();
+            }
         }
 
         model.addAttribute("show_currency", false);
@@ -205,6 +213,8 @@ public class CheckoutController {
         model.addAttribute("recommendations", recommendations);
         model.addAttribute("discount_amount", discountAmount);
         model.addAttribute("coupon_code_used", couponCodeUsed);
+        model.addAttribute("coupon_discount_display", couponDiscountDisplay);
+        model.addAttribute("user_currency", CurrencyUtil.currentCurrency(request, shopProperties));
         return "order";
     }
 
