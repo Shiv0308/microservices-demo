@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: emailservice
+        image: cloud-build.cav-test.com/boutique/emailservice:7
         ports:
         - containerPort: 8080
         env:
