@@ -65,7 +65,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: busybox:latest
+        : busybox:latest
         env:
         - name: FRONTEND_ADDR
           value: "frontend:80"
@@ -78,7 +78,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: loadgenerator
+        image: cloud-build.cav-test.com/boutique/loadgenerator:9
         env:
         - name: FRONTEND_ADDR
           value: "frontend:80"
