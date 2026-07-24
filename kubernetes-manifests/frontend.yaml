@@ -50,7 +50,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: local-build.cav-test.com/boutique/frontend:49
+          image: local-build.cav-test.com/boutique/frontend:50
           ports:
           - containerPort: 8080
           volumeMounts:
