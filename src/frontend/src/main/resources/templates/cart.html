@@ -81,9 +81,22 @@
                     <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(shipping_cost)}">$0.00</div>
                 </div>
 
-                <div class="row cart-summary-total-row" aria-label="Order total before discount">
+                <div class="row cart-summary-shipping-row" aria-label="Coupon discount applied"
+                     th:if="${not #strings.isEmpty(applied_coupon_code)}">
+                    <div class="col pl-md-0" style="color:#28a745;">
+                        Coupon Discount
+                        <span aria-hidden="true" style="background-color:#d4edda;color:#155724;padding:2px 8px;border-radius:4px;font-size:0.82em;font-weight:bold;margin-left:6px;"
+                              th:text="${applied_coupon_code}">SAVE10</span>
+                    </div>
+                    <div class="col pr-md-0 text-right" aria-live="polite" style="color:#28a745;">
+                        - <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)} + ${applied_coupon_discount}"></span>
+                    </div>
+                </div>
+
+                <div class="row cart-summary-total-row" aria-label="Order total">
                     <div class="col pl-md-0">Total</div>
-                    <div class="col pr-md-0 text-right" aria-live="polite" th:text="${moneyFormatter.renderMoney(total_cost)}">$0.00</div>
+                    <div class="col pr-md-0 text-right" aria-live="polite"
+                         th:text="${moneyFormatter.renderMoney(#strings.isEmpty(applied_coupon_code) ? total_cost : discounted_total)}">$0.00</div>
                 </div>
 
             </div>
@@ -237,8 +250,16 @@
                             <span aria-hidden="true">&#10007;</span> <span th:text="${coupon_error}"></span>
                         </div>
 
+                        <div role="status" aria-live="polite" aria-atomic="true"
+                             th:if="${not #strings.isEmpty(applied_coupon_code)}"
+                             style="background-color:#d4edda;border:1px solid #c3e6cb;color:#155724;padding:10px 14px;border-radius:4px;margin-bottom:10px;font-size:0.9em;">
+                            <span aria-hidden="true">&#10003;</span>
+                            Coupon <strong th:text="${applied_coupon_code}">SAVE10</strong> applied &mdash; you're saving
+                            <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${applied_coupon_discount}">10</span>.
+                        </div>
+
                         <div class="form-row">
-                            <div class="col cymbal-form-field">
+                            <div class="col-8 cymbal-form-field">
                                 <label for="coupon_code">Have a coupon? (optional)</label>
                                 <input type="text"
                                        id="coupon_code"
@@ -250,15 +271,25 @@
                                        aria-describedby="coupon-hint"
                                        autocomplete="off"
                                        style="text-transform:uppercase;">
-                                <small id="coupon-hint"
-                                       style="color:#6c757d;font-size:0.82em;line-height:1.6;display:block;margin-top:4px;">
-                                    Available coupons:<br>
-                                    <th:block th:each="opt : ${coupon_options}">
-                                    <strong th:text="${opt.code}">SAVE10</strong> &mdash; Save <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.discountUsd}">10</span> off orders above <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.minOrderUsd}">50</span> or more<br>
-                                    </th:block>
-                                </small>
+                            </div>
+                            <div class="col-4 d-flex align-items-end justify-content-center coupon-apply-col">
+                                <button class="cymbal-button-secondary coupon-apply-button"
+                                        type="submit"
+                                        th:formaction="@{/cart/apply-coupon}"
+                                        formnovalidate
+                                        aria-label="Validate and apply coupon code">
+                                    Apply
+                                </button>
                             </div>
                         </div>
+                        <small id="coupon-hint"
+                               style="color:#6c757d;font-size:0.82em;line-height:1.6;display:block;margin-top:4px;">
+                            Available coupons:<br>
+                            <th:block th:each="opt : ${coupon_options}">
+                            <strong th:text="${opt.code}">SAVE10</strong> &mdash; Save <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.discountUsd}">10</span> off orders above <span th:text="${moneyFormatter.renderCurrencyLogo(user_currency)}">$</span><span th:text="${opt.minOrderUsd}">50</span> or more<br>
+                            </th:block>
+                            Applying a coupon is optional &mdash; you can leave this blank and place your order without one.
+                        </small>
                     </fieldset>
 
                     <div class="form-row justify-content-center">
