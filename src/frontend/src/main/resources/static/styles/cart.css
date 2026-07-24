@@ -118,3 +118,10 @@
 .coupon-apply-button {
     width: 100%;
 }
+
+.coupon-apply-button:disabled {
+    cursor: not-allowed;
+    border: solid 1px #999999;
+    background-color: #cccccc;
+    color: #666666;
+}
