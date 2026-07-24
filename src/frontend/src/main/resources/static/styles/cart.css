@@ -108,3 +108,13 @@
 .cart-checkout-form .cymbal-button-primary {
     margin-top: 36px;
 }
+
+/* "Apply" coupon button, aligned with the bottom of the coupon input field. */
+.coupon-apply-col {
+    margin-top: 24px;
+    padding-bottom: 8px;
+}
+
+.coupon-apply-button {
+    width: 100%;
+}

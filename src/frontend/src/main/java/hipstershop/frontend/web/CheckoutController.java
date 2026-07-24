@@ -101,7 +101,7 @@ public class CheckoutController {
             return errorRenderer.render(response, model, e.getMessage(), null, 422);
         }
 
-        Hipstershop.PlaceOrderRequest orderRequest = Hipstershop.PlaceOrderRequest.newBuilder()
+        Hipstershop.PlaceOrderRequest.Builder orderRequestBuilder = Hipstershop.PlaceOrderRequest.newBuilder()
                 .setEmail(payload.getEmail())
                 .setCreditCard(Hipstershop.CreditCardInfo.newBuilder()
                         .setCreditCardNumber(payload.getCcNumber())
@@ -118,8 +118,19 @@ public class CheckoutController {
                         .setZipCode((int) (long) payload.getZipCode())
                         .setCountry(payload.getCountry())
                         .build())
-                .setCouponCode(couponCode)
-                .build();
+                .setCouponCode(couponCode);
+
+        // checkoutservice selects the coupon by position in its own ordered coupon list
+        // (coupon_index), not by the code string. When no coupon was typed, coupon_index is
+        // left unset entirely (not even sent as 0) so checkoutservice's hasCouponIndex() is
+        // false and it falls back to its own default coupon (index 0). A typed code was
+        // already confirmed to exist in ShopProperties.COUPON_DEFS above, so it's guaranteed
+        // to be found in COUPON_ORDER (the two are kept in lockstep).
+        if (!couponCode.isEmpty()) {
+            orderRequestBuilder.setCouponIndex(ShopProperties.COUPON_ORDER.indexOf(couponCode));
+        }
+
+        Hipstershop.PlaceOrderRequest orderRequest = orderRequestBuilder.build();
 
         Hipstershop.PlaceOrderResponse order;
         try {

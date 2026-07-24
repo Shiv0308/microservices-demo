@@ -44,7 +44,6 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -61,15 +60,15 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
 
   private static final String USD_CURRENCY = "USD";
 
-  /**
-   * Coupon codes and their whole-dollar (USD) discount. The value is converted into the user's
-   * currency before being applied. Mirrors the map in the Go checkoutservice.
-   */
-  private static final Map<String, Long> COUPONS =
-      Map.of(
-          "SAVE10", 10L,
-          "SAVE50", 50L,
-          "SAVE100", 100L);
+  private record CouponDef(String name, long valueUsd, long minOrderUsd) {
+  }
+
+ 
+  private static final List<CouponDef> COUPONS =
+      List.of(
+          new CouponDef("SAVE10", 10L, 50L),
+          new CouponDef("SAVE50", 50L, 200L),
+          new CouponDef("SAVE100", 100L, 350L));
 
   private final List<ManagedChannel> channels = new ArrayList<>();
 
@@ -134,25 +133,23 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      // Start from the default coupon; only override it if the client actually sent one.
-      String couponCode = "SAVE10";
-      String requestCouponCode = req.getCouponCode();
-      if (requestCouponCode != null && !requestCouponCode.isEmpty()) {
-        couponCode = requestCouponCode;
+      int couponIndex = 0;
+      if (req.hasCouponIndex()) {
+        couponIndex = req.getCouponIndex();
       }
+      CouponDef selectedCoupon = COUPONS.get(couponIndex);
 
-      Long couponValueUsd = COUPONS.get(couponCode);
-      if (couponValueUsd != null) {
+      if (selectedCoupon != null) {
         Money couponInUsd =
             Money.newBuilder()
                 .setCurrencyCode(USD_CURRENCY)
-                .setUnits(couponValueUsd)
+                .setUnits(selectedCoupon.valueUsd())
                 .setNanos(0)
                 .build();
         try {
           Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
           discountAmount = convertedDiscount;
-          couponCodeUsed = couponCode;
+          couponCodeUsed = selectedCoupon.name();
 
           // Apply the discount, but never let the charged total go negative —
           // paymentservice must not receive a negative amount.
@@ -169,7 +166,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
           logger.info("failed to convert coupon currency: {}", e.getStatus());
         }
       } else {
-        logger.info("coupon code \"{}\" not found, skipping discount", couponCode);
+        logger.info("coupon index {} out of range, skipping discount", couponIndex);
       }
 
       String txId = chargeCard(total, req.getCreditCard());

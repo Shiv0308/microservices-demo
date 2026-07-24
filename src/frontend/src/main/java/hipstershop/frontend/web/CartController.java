@@ -10,6 +10,8 @@ import hipstershop.frontend.validation.ValidationUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Validator;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,20 +33,23 @@ public class CartController {
     private final ShopProperties shopProperties;
     private final Validator validator;
     private final ErrorRenderer errorRenderer;
+    private final MoneyFormatter moneyFormatter;
 
     public CartController(
             FrontendGrpcClient grpcClient, ShopProperties shopProperties, Validator validator,
-            ErrorRenderer errorRenderer) {
+            ErrorRenderer errorRenderer, MoneyFormatter moneyFormatter) {
         this.grpcClient = grpcClient;
         this.shopProperties = shopProperties;
         this.validator = validator;
         this.errorRenderer = errorRenderer;
+        this.moneyFormatter = moneyFormatter;
     }
 
     @GetMapping("/cart")
     public String viewCart(
             @RequestParam(value = "coupon_error", required = false, defaultValue = "") String couponError,
             @RequestParam(value = "coupon_code", required = false, defaultValue = "") String lastCoupon,
+            @RequestParam(value = "coupon_action", required = false, defaultValue = "") String couponAction,
             HttpServletRequest request,
             HttpServletResponse response,
             Model model) {
@@ -110,6 +115,44 @@ public class CartController {
             couponOptions.add(new CouponOptionView(code, def.discountUsd(), def.minOrderUsd()));
         }
 
+        // Applying a coupon on the cart page only previews it (existence + minimum-order
+        // threshold, same rules as the "Place Order" flow) before checkout; the actual
+        // redemption/default-coupon behavior still lives entirely in checkoutservice, so this
+        // preview can never change what coupon actually gets applied when the order is placed.
+        // The discount is converted from USD into the shopper's currency here (via
+        // convertCurrency), matching how checkoutservice computes the real discount on this
+        // branch, so the preview shown here matches what actually gets charged.
+        String effectiveCouponError = couponError;
+        String appliedCouponCode = "";
+        Hipstershop.Money appliedCouponDiscount = null;
+        Hipstershop.Money discountedTotal = null;
+        if ("apply".equals(couponAction) && !lastCoupon.isBlank()) {
+            String normalizedCoupon = lastCoupon.trim().toUpperCase();
+            lastCoupon = normalizedCoupon;
+            ShopProperties.CouponDef def = ShopProperties.COUPON_DEFS.get(normalizedCoupon);
+            if (def == null) {
+                effectiveCouponError = "Invalid coupon code \"" + normalizedCoupon + "\". Please try again.";
+            } else if (totalPrice.getUnits() < def.minOrderUsd()) {
+                effectiveCouponError = "Coupon code \"" + normalizedCoupon + "\" requires an order of at least "
+                        + moneyFormatter.renderCurrencyLogo(currentCurrency) + def.minOrderUsd() + ". Please try again.";
+            } else {
+                appliedCouponCode = normalizedCoupon;
+                Hipstershop.Money couponInUsd = Hipstershop.Money.newBuilder()
+                        .setCurrencyCode("USD")
+                        .setUnits(def.discountUsd())
+                        .build();
+                try {
+                    appliedCouponDiscount = grpcClient.convertCurrency(couponInUsd, currentCurrency);
+                } catch (Exception e) {
+                    return errorRenderer.render(response, model, "could not preview coupon discount", e, 500);
+                }
+                Hipstershop.Money newTotal = Money.sum(totalPrice, Money.negate(appliedCouponDiscount));
+                discountedTotal = newTotal.getUnits() >= 0
+                        ? newTotal
+                        : Hipstershop.Money.newBuilder().setCurrencyCode(currentCurrency).build();
+            }
+        }
+
         model.addAttribute("currencies", currencies);
         model.addAttribute("recommendations", recommendations);
         model.addAttribute("cart_size", CartUtil.cartSize(cart));
@@ -118,10 +161,28 @@ public class CartController {
         model.addAttribute("total_cost", totalPrice);
         model.addAttribute("items", items);
         model.addAttribute("expiration_years", List.of(year, year + 1, year + 2, year + 3, year + 4));
-        model.addAttribute("coupon_error", couponError);
+        model.addAttribute("coupon_error", effectiveCouponError);
         model.addAttribute("last_coupon", lastCoupon);
         model.addAttribute("coupon_options", couponOptions);
+        model.addAttribute("applied_coupon_code", appliedCouponCode);
+        model.addAttribute("applied_coupon_discount", appliedCouponDiscount);
+        model.addAttribute("discounted_total", discountedTotal);
         return "cart";
+    }
+
+    @PostMapping("/cart/apply-coupon")
+    public String applyCoupon(
+            @RequestParam(value = "coupon_code", required = false, defaultValue = "") String couponCodeRaw) {
+        String couponCode = couponCodeRaw.trim().toUpperCase();
+        if (couponCode.isEmpty()) {
+            // Nothing to validate - treat this as skipping the discount.
+            return "redirect:/cart";
+        }
+        return "redirect:/cart?coupon_action=apply&coupon_code=" + urlEncode(couponCode);
+    }
+
+    private String urlEncode(String s) {
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
     @PostMapping("/cart")

@@ -235,6 +235,12 @@ message PlaceOrderRequest {
     string email = 5;
     CreditCardInfo credit_card = 6;
     string coupon_code = 7;
+    // Position of the coupon to apply in checkoutservice's ordered coupon list.
+    // "optional" gives this real presence tracking (hasCouponIndex()) instead of the plain
+    // proto3 zero-default, so checkoutservice can tell "no coupon chosen" (not sent at all)
+    // apart from "index 0 explicitly chosen" - both fall back to the default coupon (index 0),
+    // but the check is an explicit presence check rather than relying on an implicit zero-value.
+    optional int32 coupon_index = 8;
 }
 
 message PlaceOrderResponse {
