@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: shippingservice
+        image: cloud-build.cav-test.com/boutique/shippingservice:7
         ports:
         - containerPort: 50051
         env:
