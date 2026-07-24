@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: recommendationservice
+        image: cloud-build.cav-test.com/boutique/recommendationservice:7
         ports:
         - containerPort: 8080
         readinessProbe:
