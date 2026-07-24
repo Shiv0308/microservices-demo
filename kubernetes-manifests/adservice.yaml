@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: adservice
+        image: cloud-build.cav-test.com/boutique/adservice:7
         ports:
         - containerPort: 9555
         env:
