@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: currencyservice
+        image: cloud-build.cav-test.com/boutique/currencyservice:7
         ports:
         - name: grpc
           containerPort: 7000
