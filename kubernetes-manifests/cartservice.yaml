@@ -44,7 +44,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: cartservice
+        image: cloud-build.cav-test.com/boutique/cartservice:7
         ports:
         - containerPort: 7070
         env:
