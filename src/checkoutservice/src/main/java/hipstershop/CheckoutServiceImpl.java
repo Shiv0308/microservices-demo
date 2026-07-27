@@ -60,7 +60,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
 
   private static final String USD_CURRENCY = "USD";
 
-  private record CouponDef(String name, long valueUsd, long minOrderUsd) {
+  private record CouponDef(String name, long value, long minOrderUsd) {
   }
 
  
@@ -111,6 +111,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
 
     try {
       String orderId = UUID.randomUUID().toString();
+      int couponIndex = 0;
 
       OrderPrep prep =
           prepareOrderItemsAndShippingQuoteFromCart(
@@ -133,7 +134,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      int couponIndex = 0;
+      
       if (req.hasCouponIndex()) {
         couponIndex = req.getCouponIndex();
       }
@@ -143,27 +144,21 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
         Money couponInUsd =
             Money.newBuilder()
                 .setCurrencyCode(USD_CURRENCY)
-                .setUnits(selectedCoupon.valueUsd())
+                .setUnits(selectedCoupon.value())
                 .setNanos(0)
                 .build();
-        try {
-          Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
-          discountAmount = convertedDiscount;
-          couponCodeUsed = selectedCoupon.name();
+        Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
+        discountAmount = convertedDiscount;
+        couponCodeUsed = selectedCoupon.name();
 
-          // Apply the discount, but never let the charged total go negative —
-          // paymentservice must not receive a negative amount.
-          Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
-          if (!MoneyUtil.isNegative(newTotal)) {
-            total = newTotal;
-          } else {
-            // Discount exceeds the total: the order is free.
-            total = MoneyUtil.zero(req.getUserCurrency());
-          }
-        } catch (StatusRuntimeException e) {
-          // A currency-conversion failure just skips the discount rather than
-          // failing the whole order.
-          logger.info("failed to convert coupon currency: {}", e.getStatus());
+        // Apply the discount, but never let the charged total go negative —
+        // paymentservice must not receive a negative amount.
+        Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
+        if (!MoneyUtil.isNegative(newTotal)) {
+          total = newTotal;
+        } else {
+          // Discount exceeds the total: the order is free.
+          total = MoneyUtil.zero(req.getUserCurrency());
         }
       } else {
         logger.info("coupon index {} out of range, skipping discount", couponIndex);
