@@ -140,30 +140,22 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       CouponDef selectedCoupon = COUPONS.get(couponIndex);
 
       if (selectedCoupon != null) {
-        Money couponInUsd =
+        discountAmount =
             Money.newBuilder()
-                .setCurrencyCode(USD_CURRENCY)
+                .setCurrencyCode(req.getUserCurrency())
                 .setUnits(selectedCoupon.valueUsd())
                 .setNanos(0)
                 .build();
-        try {
-          Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
-          discountAmount = convertedDiscount;
-          couponCodeUsed = selectedCoupon.name();
+        couponCodeUsed = selectedCoupon.name();
 
-          // Apply the discount, but never let the charged total go negative —
-          // paymentservice must not receive a negative amount.
-          Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
-          if (!MoneyUtil.isNegative(newTotal)) {
-            total = newTotal;
-          } else {
-            // Discount exceeds the total: the order is free.
-            total = MoneyUtil.zero(req.getUserCurrency());
-          }
-        } catch (StatusRuntimeException e) {
-          // A currency-conversion failure just skips the discount rather than
-          // failing the whole order.
-          logger.info("failed to convert coupon currency: {}", e.getStatus());
+        // Apply the discount, but never let the charged total go negative —
+        // paymentservice must not receive a negative amount.
+        Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
+        if (!MoneyUtil.isNegative(newTotal)) {
+          total = newTotal;
+        } else {
+          // Discount exceeds the total: the order is free.
+          total = MoneyUtil.zero(req.getUserCurrency());
         }
       } else {
         logger.info("coupon index {} out of range, skipping discount", couponIndex);
