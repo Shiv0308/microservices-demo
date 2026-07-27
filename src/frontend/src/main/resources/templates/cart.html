@@ -270,12 +270,15 @@
                                        aria-label="Optional coupon code"
                                        aria-describedby="coupon-hint"
                                        autocomplete="off"
-                                       style="text-transform:uppercase;">
+                                       style="text-transform:uppercase;"
+                                       oninput="document.getElementById('coupon-apply-button').disabled = !this.value.trim();">
                             </div>
                             <div class="col-4 d-flex align-items-end justify-content-center coupon-apply-col">
-                                <button class="cymbal-button-secondary coupon-apply-button"
+                                <button id="coupon-apply-button"
+                                        class="cymbal-button-secondary coupon-apply-button"
                                         type="submit"
                                         th:formaction="@{/cart/apply-coupon}"
+                                        th:disabled="${#strings.isEmpty(last_coupon)}"
                                         formnovalidate
                                         aria-label="Validate and apply coupon code">
                                     Apply
