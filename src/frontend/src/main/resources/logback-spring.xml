@@ -12,6 +12,8 @@
         </encoder>
     </appender>
 
+    <logger name="hipstershop.frontend.request" level="INFO" />
+
     <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>

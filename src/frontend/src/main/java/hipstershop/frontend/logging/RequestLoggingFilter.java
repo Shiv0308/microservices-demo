@@ -46,7 +46,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             MDC.put("http.resp.took_ms", String.valueOf(tookMs));
             MDC.put("http.resp.status", String.valueOf(wrapped.getStatus()));
             MDC.put("http.resp.bytes", String.valueOf(wrapped.getContentSize()));
-            log.debug("request complete");
+            log.info("request complete");
             wrapped.copyBodyToResponse();
             MDC.clear();
         }
