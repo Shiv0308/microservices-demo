@@ -24,18 +24,3 @@ springdoc:
     path: /swagger-ui.html
   api-docs:
     path: /v3/api-docs
-
-replay:
-  logging:
-    enabled: ${REPLAY_LOGGING_ENABLED:true}
-    max-payload: ${REPLAY_LOGGING_MAX_PAYLOAD:10000}
-    include-response: ${REPLAY_LOGGING_INCLUDE_RESPONSE:false}
-    skip-paths:
-      - /swagger-ui/**
-      - /swagger-ui.html
-      - /v3/api-docs/**
-      - /swagger.json
-      - /swagger/**
-      - /static/**
-      - /_healthz
-      - /robots.txt
