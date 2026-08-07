@@ -111,7 +111,7 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
 
     try {
       String orderId = UUID.randomUUID().toString();
-      int couponIndex = 0;
+      Integer couponIndex = null;
 
       OrderPrep prep =
           prepareOrderItemsAndShippingQuoteFromCart(
@@ -134,11 +134,15 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      
+      CouponDef selectedCoupon = null;
       if (req.hasCouponIndex()) {
         couponIndex = req.getCouponIndex();
+        if (couponIndex >= 0 && couponIndex < COUPONS.size()) {
+          selectedCoupon = COUPONS.get(couponIndex);
+        } else {
+          logger.info("coupon index {} out of range, skipping discount", couponIndex);
+        }
       }
-      CouponDef selectedCoupon = COUPONS.get(couponIndex);
 
       if (selectedCoupon != null) {
         Money couponInUsd =
@@ -160,8 +164,6 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
           // Discount exceeds the total: the order is free.
           total = MoneyUtil.zero(req.getUserCurrency());
         }
-      } else {
-        logger.info("coupon index {} out of range, skipping discount", couponIndex);
       }
 
       String txId = chargeCard(total, req.getCreditCard());
