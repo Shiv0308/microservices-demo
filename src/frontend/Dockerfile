@@ -22,6 +22,7 @@ WORKDIR /app
 COPY build.gradle settings.gradle gradlew ./
 COPY gradle gradle
 RUN chmod +x gradlew
+ENV JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"
 RUN ./gradlew downloadRepos --no-daemon
 
 COPY . .
