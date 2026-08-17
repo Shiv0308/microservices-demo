@@ -554,6 +554,7 @@ similar to that of the hot-products-row.
 .local,
 .local .platform-flag {
   background-color: #2c0678;
+  display: none;
 }
 
 .platform-flag {
