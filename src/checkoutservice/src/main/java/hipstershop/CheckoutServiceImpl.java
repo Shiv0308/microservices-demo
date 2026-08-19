@@ -58,8 +58,6 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
 
   private static final Logger logger = LogManager.getLogger(CheckoutServiceImpl.class);
 
-  private static final String USD_CURRENCY = "USD";
-
   private record CouponDef(String name, long value, long minOrderUsd) {
   }
 
@@ -141,14 +139,12 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       CouponDef selectedCoupon = COUPONS.get(couponIndex);
 
       if (selectedCoupon != null) {
-        Money couponInUsd =
+        discountAmount =
             Money.newBuilder()
-                .setCurrencyCode(USD_CURRENCY)
+                .setCurrencyCode(req.getUserCurrency())
                 .setUnits(selectedCoupon.value())
                 .setNanos(0)
                 .build();
-        Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
-        discountAmount = convertedDiscount;
         couponCodeUsed = selectedCoupon.name();
 
         // Apply the discount, but never let the charged total go negative —
