@@ -119,9 +119,9 @@ public class CartController {
         // threshold, same rules as the "Place Order" flow) before checkout; the actual
         // redemption/default-coupon behavior still lives entirely in checkoutservice, so this
         // preview can never change what coupon actually gets applied when the order is placed.
-        // The discount is converted from USD into the shopper's currency here (via
-        // convertCurrency), matching how checkoutservice computes the real discount on this
-        // branch, so the preview shown here matches what actually gets charged.
+        // Coupon face values are fixed by coupon tier in the shopper's selected currency.
+        // For example, SAVE100 should display as 100 units of EUR when the shopper selected EUR,
+        // not as a USD amount converted into EUR.
         String effectiveCouponError = couponError;
         String appliedCouponCode = "";
         Hipstershop.Money appliedCouponDiscount = null;
@@ -137,15 +137,10 @@ public class CartController {
                         + moneyFormatter.renderCurrencyLogo(currentCurrency) + def.minOrderUsd() + ". Please try again.";
             } else {
                 appliedCouponCode = normalizedCoupon;
-                Hipstershop.Money couponInUsd = Hipstershop.Money.newBuilder()
-                        .setCurrencyCode("USD")
+                appliedCouponDiscount = Hipstershop.Money.newBuilder()
+                        .setCurrencyCode(currentCurrency)
                         .setUnits(def.discountUsd())
                         .build();
-                try {
-                    appliedCouponDiscount = grpcClient.convertCurrency(couponInUsd, currentCurrency);
-                } catch (Exception e) {
-                    return errorRenderer.render(response, model, "could not preview coupon discount", e, 500);
-                }
                 Hipstershop.Money newTotal = Money.sum(totalPrice, Money.negate(appliedCouponDiscount));
                 discountedTotal = newTotal.getUnits() >= 0
                         ? newTotal
