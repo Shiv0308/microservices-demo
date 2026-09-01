@@ -50,7 +50,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: local-build.cav-test.com/boutique/frontend:82
+          image: local-build.cav-test.com/boutique/frontend:13
           ports:
           - containerPort: 8080
           volumeMounts:
@@ -147,7 +147,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    app: frontend
+    app: frontend-primary
   ports:
   - name: http
     port: 80
