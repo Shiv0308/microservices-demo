@@ -43,7 +43,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: cloud-build.cav-test.com/boutique/checkoutservice:8
+          image: cloud-build.cav-test.com/boutique/checkoutservice:9
           ports:
           - containerPort: 5050
           readinessProbe:
