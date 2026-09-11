@@ -117,7 +117,7 @@ spec:
               memory: 320Mi
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 1Gi
       volumes:
       - name: tmp
         emptyDir: {}
