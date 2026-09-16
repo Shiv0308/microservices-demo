@@ -111,7 +111,6 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
 
     try {
       String orderId = UUID.randomUUID().toString();
-      int couponIndex = 0;
 
       OrderPrep prep =
           prepareOrderItemsAndShippingQuoteFromCart(
@@ -134,34 +133,34 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
 
-      
       if (req.hasCouponIndex()) {
-        couponIndex = req.getCouponIndex();
-      }
-      CouponDef selectedCoupon = COUPONS.get(couponIndex);
+        int couponIndex = req.getCouponIndex();
+        CouponDef selectedCoupon =
+            couponIndex >= 0 && couponIndex < COUPONS.size() ? COUPONS.get(couponIndex) : null;
 
-      if (selectedCoupon != null) {
-        Money couponInUsd =
-            Money.newBuilder()
-                .setCurrencyCode(USD_CURRENCY)
-                .setUnits(selectedCoupon.value())
-                .setNanos(0)
-                .build();
-        Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
-        discountAmount = convertedDiscount;
-        couponCodeUsed = selectedCoupon.name();
+        if (selectedCoupon != null) {
+          Money couponInUsd =
+              Money.newBuilder()
+                  .setCurrencyCode(USD_CURRENCY)
+                  .setUnits(selectedCoupon.value())
+                  .setNanos(0)
+                  .build();
+          Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
+          discountAmount = convertedDiscount;
+          couponCodeUsed = selectedCoupon.name();
 
-        // Apply the discount, but never let the charged total go negative —
-        // paymentservice must not receive a negative amount.
-        Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
-        if (!MoneyUtil.isNegative(newTotal)) {
-          total = newTotal;
+          // Apply the discount, but never let the charged total go negative —
+          // paymentservice must not receive a negative amount.
+          Money newTotal = MoneyUtil.sum(total, MoneyUtil.negate(discountAmount));
+          if (!MoneyUtil.isNegative(newTotal)) {
+            total = newTotal;
+          } else {
+            // Discount exceeds the total: the order is free.
+            total = MoneyUtil.zero(req.getUserCurrency());
+          }
         } else {
-          // Discount exceeds the total: the order is free.
-          total = MoneyUtil.zero(req.getUserCurrency());
+          logger.info("coupon index {} out of range, skipping discount", couponIndex);
         }
-      } else {
-        logger.info("coupon index {} out of range, skipping discount", couponIndex);
       }
 
       String txId = chargeCard(total, req.getCreditCard());
