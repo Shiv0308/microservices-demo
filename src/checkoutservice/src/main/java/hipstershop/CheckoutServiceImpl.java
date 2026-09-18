@@ -130,6 +130,8 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       //
       // discountAmount / couponCodeUsed stay zero/empty unless a valid
       // coupon is applied, so the order proceeds at full price otherwise.
+      // Coupon values are fixed nominal amounts in the shopper's selected
+      // currency, not USD amounts that should be converted.
       // ---------------------------------------------------------------
       Money discountAmount = MoneyUtil.zero(req.getUserCurrency());
       String couponCodeUsed = "";
@@ -141,14 +143,12 @@ final class CheckoutServiceImpl extends CheckoutServiceGrpc.CheckoutServiceImplB
       CouponDef selectedCoupon = COUPONS.get(couponIndex);
 
       if (selectedCoupon != null) {
-        Money couponInUsd =
+        discountAmount =
             Money.newBuilder()
-                .setCurrencyCode(USD_CURRENCY)
+                .setCurrencyCode(req.getUserCurrency())
                 .setUnits(selectedCoupon.value())
                 .setNanos(0)
                 .build();
-        Money convertedDiscount = convertCurrency(couponInUsd, req.getUserCurrency());
-        discountAmount = convertedDiscount;
         couponCodeUsed = selectedCoupon.name();
 
         // Apply the discount, but never let the charged total go negative —
