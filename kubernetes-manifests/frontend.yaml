@@ -150,7 +150,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    tier: frontend
+    app: frontend-primary
   ports:
   - name: http
     port: 80
