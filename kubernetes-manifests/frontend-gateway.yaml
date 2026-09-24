@@ -1,0 +1,22 @@
+# Gateway only — no VirtualService here. Flagger already manages its own
+# VirtualService for "frontend" (in boutique namespace); that VirtualService is
+# told to also bind to this Gateway via cd_rollback_strategy's
+# strategies[].target.gateways / target.hosts (see kubeOpt's CanaryManifestBuilder).
+# A second, separately-applied VirtualService would either sit uselessly next to
+# Flagger's weighted one or conflict with it on the same "*" host — so it's
+# deliberately left out here.
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  namespace: boutique
+  name: frontend-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
