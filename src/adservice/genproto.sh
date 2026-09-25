@@ -20,4 +20,5 @@
 mkdir -p proto && \
 cp ../../protos/hipstershop.proto src/main/proto
 
+# genprotosh
 # [END gke_adservice_genproto]
