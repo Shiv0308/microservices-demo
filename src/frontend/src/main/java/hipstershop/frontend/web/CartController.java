@@ -119,9 +119,8 @@ public class CartController {
         // threshold, same rules as the "Place Order" flow) before checkout; the actual
         // redemption/default-coupon behavior still lives entirely in checkoutservice, so this
         // preview can never change what coupon actually gets applied when the order is placed.
-        // The discount is converted from USD into the shopper's currency here (via
-        // convertCurrency), matching how checkoutservice computes the real discount on this
-        // branch, so the preview shown here matches what actually gets charged.
+        // Coupon values are nominal in the shopper's selected currency: SAVE10 means 10 EUR in
+        // EUR, 10 GBP in GBP, and so on. Do not currency-convert the coupon amount itself.
         String effectiveCouponError = couponError;
         String appliedCouponCode = "";
         Hipstershop.Money appliedCouponDiscount = null;
@@ -137,15 +136,10 @@ public class CartController {
                         + moneyFormatter.renderCurrencyLogo(currentCurrency) + def.minOrderUsd() + ". Please try again.";
             } else {
                 appliedCouponCode = normalizedCoupon;
-                Hipstershop.Money couponInUsd = Hipstershop.Money.newBuilder()
-                        .setCurrencyCode("USD")
+                appliedCouponDiscount = Hipstershop.Money.newBuilder()
+                        .setCurrencyCode(currentCurrency)
                         .setUnits(def.discountUsd())
                         .build();
-                try {
-                    appliedCouponDiscount = grpcClient.convertCurrency(couponInUsd, currentCurrency);
-                } catch (Exception e) {
-                    return errorRenderer.render(response, model, "could not preview coupon discount", e, 500);
-                }
                 Hipstershop.Money newTotal = Money.sum(totalPrice, Money.negate(appliedCouponDiscount));
                 discountedTotal = newTotal.getUnits() >= 0
                         ? newTotal
